@@ -1,0 +1,8 @@
+Recipe gelato_base (total = ~800.000000g):
+
+WholeMilk: 500
+Cream: 90
+SkimMilkPowder: 125
+Sucrose: 85
+StabEmul: 1.5
+Salt: 1.0
