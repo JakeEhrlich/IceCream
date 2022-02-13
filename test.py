@@ -455,6 +455,68 @@ CocoaPowder.add_entity(GenericBulk, 1.0 - 0.21 - 0.14 - 0.045)
 VanillinPowder = Entity()
 VanillinPowder.add_component(BulkComponent)
 
+Aperol = Mixture()
+Aperol.add_entity(Sucrose, 0.35)
+Aperol.add_entity(Ethonol, 0.11)
+Aperol.add_entity(Water, 1.0 - 0.35 - 0.11)
+
+def strawberry_juice(observed_brix):
+    # Sourced from foodb.ca
+    expected_water_index = 0.78100
+    expected_sucrose_index = 0.12685
+    expected_fructose_index = 0.00930
+    expected_glucose_index = 0.008175
+
+    return produce_juice(observed_brix, expected_water_index, expected_sucrose_index, expected_fructose_index, expected_glucose_index)
+
+def carrot_juice(observed_brix):
+    # Sourced from foodb.ca
+    # TODO: Carrot has non-trivial fat in it, we need to add that in.
+    expected_water_index = 0.74625
+    expected_sucrose_index = 0.03083718
+    expected_fructose_index = 0.01140172
+    expected_glucose_index = 0.08 + 0.01536
+
+    return produce_juice(observed_brix, expected_water_index, expected_sucrose_index, expected_fructose_index, expected_glucose_index)
+
+def produce_juice(observed_brix, expected_water_index, expected_sucrose_index, expected_fructose_index, expected_glucose_index):
+    # We assume that the ratio of water:solids and the ratio of sucrose:glucose:fructose is the same for all
+    # strawberry juice (its not), Additionally we assume 1g of any sugar will effect the index of refraction the same way
+    # which is aproximently true but is an aproximation. With those assumptions we can improve our mixture accuracy based
+    # only on the observed brix from a refractometer. Lastly we assume the juicer removes 85% of other bulk. This is a 
+    # very very rough aproximation but thats the nature of making sorbet like this.
+
+    # Need to know the ratio of water and solids
+    expected_other_solids = 1.0 - expected_water_index - expected_sucrose_index - expected_fructose_index - expected_glucose_index
+
+    # Calculate total sugars and non-sugars based on observation
+    assumed_total_sugars = observed_brix / 100.0
+    assumed_total_non_sugars = 1.0 - assumed_total_sugars
+
+    # Calculate totals for ratios
+    expected_total_non_sugars = expected_water_index + expected_other_solids
+    expected_total_sugars = expected_sucrose_index + expected_fructose_index + expected_glucose_index
+
+    # Calculate total sugars wtih sugar ratios adjusted for observed brix
+    assumed_sucrose = assumed_total_sugars * expected_sucrose_index / expected_total_sugars
+    assumed_fructose = assumed_total_sugars * expected_fructose_index / expected_total_sugars
+    assumed_glucose = assumed_total_sugars * expected_glucose_index / expected_total_sugars
+
+    # Calculate water+solids adjusted by observation
+    assumed_water = assumed_total_non_sugars * expected_water_index / expected_total_non_sugars
+    assumed_bulk = 0.15 * assumed_total_non_sugars * expected_other_solids / expected_total_non_sugars
+
+    # Construct mixture
+    Juice = Mixture()
+    Juice.add_entity(Sucrose, assumed_sucrose)
+    Juice.add_entity(Fructose, assumed_fructose)
+    Juice.add_entity(Glucose, assumed_glucose)
+    Juice.add_entity(GenericBulk, assumed_bulk)
+    Juice.add_entity(Water, assumed_water)
+    Juice.normalize() # Because we left out some bulk we normalize
+
+    return Juice
+
 # Tweak the base_formula to add/remove ingredients
 # TODO: Consider adding an abstract "cost" param
 base_formula = Formula()
@@ -601,6 +663,31 @@ def marshmallow_cost_fn(formula):
 
     return cost
 
+strawberry_sorbet = Formula()
+strawberry_sorbet.add_mixture("Juice", strawberry_juice(12.0), 0.2)
+strawberry_sorbet.add_entity("MP Perfect Sorbet", MPPerfectSorbet, 0.2)
+#strawberry_sorbet.add_entity("Salt", SodiumChloride, 0.2)
+strawberry_sorbet.add_mixture("Aperol", Aperol, 0.2)
+strawberry_sorbet.normalize()
+
+def strawberry_sorbet_cost_fn(formula):
+    mix = formula.mixture()
+    formula = formula.formula()
+
+    cost = scaled_least_squares([
+        # sweetness (in brix)
+        #(16.0, 0.0, 100.0, mix.brix()),
+        # %stab/emul
+        (0.5,  0.0, 100.0, 100*mix.entity_index(MPPerfectSorbet)),
+        # %ice at -6.0C
+        (50.0, 0.0, 100.0, 100*mix.ice_index(-6.0)),
+        # saltiness (in brix-like units but relative to sodium chloride instead of sucrose)
+        #(0.3,  0.0, 100.0, 100*mix.saltiness_index()),
+    ])
+
+    return cost
+
+
 def dump_recipe(base_formula, cost_fn, recipe_name, total_weight):
     print("init cost recipe_name: ", cost_fn(base_formula))
     base_formula = simulated_annealing(base_formula, linear_step_schedule(init_temp=200.0), cost_fn, max_steps=10000)
@@ -620,4 +707,4 @@ def dump_recipe(base_formula, cost_fn, recipe_name, total_weight):
     formula = base_formula.formula()
     print_recipe(formula, total_weight)
 
-dump_recipe(marshmallow_formula, marshmallow_cost_fn, "marshmallow", 850)
+dump_recipe(strawberry_sorbet, strawberry_sorbet_cost_fn, "strawberry_sorbet", 850)

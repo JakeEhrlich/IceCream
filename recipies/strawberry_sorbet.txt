@@ -1,0 +1,16 @@
+init cost recipe_name:  65.6702799806029
+final cost recipe_name:  0.0007481818368752199
+
+Facts:
+fat:  0
+brix:  19.163300857684938
+stab/emul:  0.0
+water:  0.766681297988194
+ice at -6C:  0.49967081126184404
+saltiness:  0
+solids:  0.23331870201180605
+
+Recipe strawberry_sorbet (total = 850.000000g):
+Juice: 610.6361020028985
+MP Perfect Sorbet: 4.248489514127059
+Aperol: 235.11540848297446
